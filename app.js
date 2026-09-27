@@ -298,7 +298,7 @@
           <div class="mc-name">${esc(m.name)} <span class="muted mono small">$${esc(m.ticker)}</span></div>
           <div class="mc-repo">${esc(m.repo.fullName)}</div>
         </div>
-        ${m.verified ? `<span class="verified">${icon.check} verified</span>` : `<span class="unverified">unverified</span>`}
+        ${m.example ? `<span class="pill">example</span>` : m.verified ? `<span class="verified">${icon.check} verified</span>` : `<span class="unverified">unverified</span>`}
       </div>
       <div class="mc-stats">
         <div class="stat"><div class="k">mcap</div><div class="v">${fmt(curve.mcap(m))} Ξ</div></div>
@@ -399,7 +399,7 @@
         <a href="#/explore" class="btn btn-ghost press">view all →</a>
       </div>
       ${recent.length ? `<div class="grid">${recent.map(marketCard).join("")}</div>` :
-        `<div class="empty"><p>verified repository launches will appear here</p><a href="#/launch" class="btn btn-ink press">launch the first one</a></div>`}
+        `<div class="empty"><p>verified repository launches will appear here</p><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><a href="#/launch" class="btn btn-ink press">launch the first one</a><button class="btn btn-outline press" data-seed type="button">load example markets</button></div></div>`}
     </section>
 
     <section class="section reveal">${howSteps()}</section>`;
@@ -507,7 +507,7 @@
       if (sort === "new") ms.sort((a, b) => b.createdAt - a.createdAt);
       if (sort === "active") ms.sort((a, b) => trades(b) - trades(a) || (b.repo.commits - a.repo.commits));
       list.innerHTML = ms.length ? `<div class="grid">${ms.map(marketCard).join("")}</div>` :
-        `<div class="empty"><p>${state.markets.length ? "no markets match that filter" : "no markets yet — launch the first repository"}</p><a href="#/launch" class="btn btn-ink press">launch a repository</a></div>`;
+        `<div class="empty"><p>${state.markets.length ? "no markets match that filter" : "no markets yet — launch the first repository"}</p><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><a href="#/launch" class="btn btn-ink press">launch a repository</a>${state.markets.length ? "" : `<button class="btn btn-outline press" data-seed type="button">load example markets</button>`}</div></div>`;
     };
     setupTabs($("#sortTabs", app), (v) => { sort = v; draw(); });
     $("#q", app).addEventListener("input", draw);
@@ -613,6 +613,7 @@
         } catch (ex) {
           if (!panel.isConnected) return;
           err.textContent = ex.message || "could not reach GitHub";
+          if (/could not reach|rate limit/.test(err.textContent)) err.insertAdjacentHTML("beforeend", ` · <button type="button" data-seed style="color:var(--accent);text-decoration:underline">try the example markets instead</button>`);
         } finally {
           if (panel.isConnected) { btn.disabled = false; btn.textContent = "fetch"; }
         }
@@ -749,6 +750,39 @@
     draw();
   };
 
+  // fictional sample markets so the app can be explored without GitHub access
+  function seedExamples() {
+    const samples = [
+      { name: "Tidepool", ticker: "TIDE", repo: "tidepool", desc: "A tiny job queue for edge runtimes", lang: "TypeScript", stars: 4820, forks: 212, commits: 1310, contributors: 41, buys: [2.4, 1.1, 0.6, 3.2], sells: [0.3] },
+      { name: "Lanternfs", ticker: "LNTRN", repo: "lanternfs", desc: "Content-addressed file sync over plain HTTP", lang: "Rust", stars: 1930, forks: 88, commits: 642, contributors: 17, buys: [1.5, 0.8, 0.4], sells: [0.9] },
+      { name: "Quillmark", ticker: "QUILL", repo: "quillmark", desc: "Markdown to print-ready PDF with no LaTeX", lang: "Go", stars: 760, forks: 31, commits: 288, contributors: 9, buys: [0.5, 0.25], sells: [] },
+    ];
+    const hue = { TIDE: 200, LNTRN: 38, QUILL: 280 };
+    samples.forEach((x, i) => {
+      if (state.markets.some((m) => m.ticker === x.ticker)) return;
+      const repo = {
+        owner: "example", name: x.repo, fullName: "example/" + x.repo, description: x.desc,
+        avatar: "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="hsl(${hue[x.ticker]} 70% 88%)"/><text x="20" y="26" font-family="sans-serif" font-size="16" font-weight="700" text-anchor="middle" fill="hsl(${hue[x.ticker]} 60% 35%)">${x.name[0]}</text></svg>`),
+        url: "#/how", stars: x.stars, forks: x.forks, issues: 0, language: x.lang, branch: "main",
+        pushedAt: new Date(Date.now() - (i + 1) * 86400000).toISOString(), commits: x.commits, contributors: x.contributors,
+      };
+      const m = freshMarket(repo);
+      const who = "0x" + "e".repeat(4) + (i + 1).toString(16).padStart(36, "0");
+      Object.assign(m, { id: uid(), name: x.name, ticker: x.ticker, verified: false, example: true, creator: who, createdAt: Date.now() - (i + 1) * 3600000 });
+      recordPrice(m);
+      state.markets.push(m);
+      logActivity({ type: "launch", marketId: m.id, who, repo: repo.fullName });
+      x.buys.forEach((eth) => { const r = buy(m, eth); recordPrice(m); logActivity({ type: "buy", marketId: m.id, who, tokens: r.tokens, eth: r.spent }); });
+      x.sells.forEach((eth) => { const tok = curve.buyQuote(m, eth).out; const r = sell(m, tok); recordPrice(m); logActivity({ type: "sell", marketId: m.id, who, tokens: tok, eth: r.eth }); });
+    });
+    save();
+    toast("example markets loaded");
+    render();
+  }
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-seed]")) { e.preventDefault(); seedExamples(); }
+  });
+
   function freshMarket(repo) {
     return {
       repo: { ...repo }, vEth: V_ETH0, vTok: V_TOK0, sold: 0, creatorFees: 0, history: [],
@@ -780,7 +814,7 @@
         <div class="avatar" style="background-image:url('${esc(r.avatar)}')"></div>
         <div style="flex:1;min-width:200px">
           <h1>${esc(m.name)} <span class="muted mono" style="font-size:18px">$${esc(m.ticker)}</span></h1>
-          <div class="mc-repo" style="margin-top:4px"><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.fullName)} ↗</a> · ${m.verified ? `<span class="verified">${icon.check} verified maintainer</span>` : `<span class="unverified">unverified</span>`}</div>
+          <div class="mc-repo" style="margin-top:4px">${m.example ? `${esc(r.fullName)} · <span class="pill">example data</span>` : `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.fullName)} ↗</a>`} · ${m.example ? "" : m.verified ? `<span class="verified">${icon.check} verified maintainer</span>` : `<span class="unverified">unverified</span>`}</div>
         </div>
         <div style="text-align:right">
           <div class="price-big" id="priceBig">${fmtPrice(curve.price(m))}</div>
@@ -812,7 +846,7 @@
                 <div class="list-item">language<span class="t">${esc(r.language)}</span></div>
                 <div class="list-item">last push<span class="t">${r.pushedAt ? ago(new Date(r.pushedAt).getTime()) + " ago" : "—"}</span></div>
               </div>
-              <div style="padding:0 18px 16px"><button class="btn btn-ghost press" id="refreshRepo" type="button">refresh from GitHub</button></div>
+              ${m.example ? "" : `<div style="padding:0 18px 16px"><button class="btn btn-ghost press" id="refreshRepo" type="button">refresh from GitHub</button></div>`}
             </div>
             <div class="card feed">
               <div class="card-title">trades</div>
@@ -939,7 +973,7 @@
     };
     draw();
 
-    $("#refreshRepo", app).addEventListener("click", async (e) => {
+    $("#refreshRepo", app)?.addEventListener("click", async (e) => {
       const b = e.currentTarget;
       b.disabled = true; b.textContent = "refreshing…";
       try {
@@ -1024,8 +1058,13 @@
     $("#pConnect", app)?.addEventListener("click", () => { connect(); render(); });
     $("#copyAddr", app)?.addEventListener("click", () => copy(state.wallet.address));
     $("#disc", app)?.addEventListener("click", () => { disconnect(); render(); });
-    $("#reset", app)?.addEventListener("click", () => {
-      if (!confirm("Delete all demo markets, activity and your wallet from this browser?")) return;
+    let armed = false;
+    $("#reset", app)?.addEventListener("click", (e) => {
+      if (!armed) {
+        armed = true;
+        e.currentTarget.textContent = "click again to delete all demo data";
+        return;
+      }
       state = defaultState(); save(); toast("demo data cleared"); location.hash = "#/";
       render();
     });
@@ -1036,6 +1075,7 @@
   }
 
   // ---------- boot ----------
+  document.documentElement.classList.add("js-motion");
   lastPath = location.hash.split("?")[0];
   onScroll();
   render();
