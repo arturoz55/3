@@ -6,7 +6,7 @@
 
   // ---------- constants ----------
   // Paste the project's X (Twitter) profile here, e.g. "https://x.com/yourhandle"
-  const X_PROFILE_URL = "";
+  const X_PROFILE_URL = "https://x.com/Forklinetech";
   const STORE_KEY = "forkline:v1";
   const TOTAL_SUPPLY = 1_000_000_000;
   const CURVE_SUPPLY = 800_000_000; // tokens sellable on the curve before graduation
@@ -268,6 +268,19 @@
       archived: info.archived,
     };
   }
+  // re-reads the verification file of an already verified market (for its Zcash tip address)
+  async function readVerifyFile(repo) {
+    const url = `https://raw.githubusercontent.com/${repo.owner}/${repo.name}/${encodeURIComponent(repo.branch)}/${VERIFY_FILE}?t=${Date.now()}`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error("could not read " + VERIFY_FILE);
+    return res.text();
+  }
+  async function zcashFrom(raw) {
+    if (!raw || !window.Zcash) return null;
+    const v = await window.Zcash.validate(raw);
+    return v.ok ? { address: v.address, kind: v.kind, shielded: v.shielded, label: v.label } : { invalid: v.reason, raw };
+  }
   async function checkVerification(repo, code) {
     const url = `https://raw.githubusercontent.com/${repo.owner}/${repo.name}/${encodeURIComponent(repo.branch)}/${VERIFY_FILE}?t=${Date.now()}`;
     let res;
@@ -276,7 +289,7 @@
     if (res.status === 404) return { ok: false, reason: `no ${VERIFY_FILE} file found on ${repo.branch} yet` };
     if (!res.ok) return { ok: false, reason: "could not read the file (" + res.status + ")" };
     const text = await res.text();
-    return text.includes(code) ? { ok: true } : { ok: false, reason: `${VERIFY_FILE} exists but does not contain the code` };
+    return text.includes(code) ? { ok: true, zcash: window.Zcash?.addressFromFile(text) || null } : { ok: false, reason: `${VERIFY_FILE} exists but does not contain the code` };
   }
 
   // ---------- router ----------
@@ -379,6 +392,7 @@
     const m = state.markets.find((x) => x.id === a.marketId);
     const name = m ? `<a href="#/m/${m.id}">$${esc(m.ticker)}</a>` : "a market";
     if (a.type === "launch") return `<span class="badge launch">${icon.rocket}</span><span><span class="mono">${esc(short(a.who))}</span> launched ${name} from <span class="mono">${esc(a.repo)}</span></span>`;
+    if (a.shielded) return `<span class="badge shielded">${icon.shield}</span><span>shielded ${a.type} of ${name} <span class="muted small">· address and amount hidden</span></span>`;
     const verb = a.type === "buy" ? "bought" : "sold";
     return `<span class="badge ${a.type}">${a.type === "buy" ? "↑" : "↓"}</span><span><span class="mono">${esc(short(a.who))}</span> ${verb} ${fmt(a.tokens)} ${name} for ${fmtEth(a.eth)}</span>`;
   }
@@ -388,7 +402,7 @@
     const one = items.map((a) => {
       const m = state.markets.find((x) => x.id === a.marketId);
       const t = m ? "$" + m.ticker : "—";
-      const txt = a.type === "launch" ? `<b>${esc(t)}</b> launched` : `<b>${esc(t)}</b> ${a.type} ${fmtEth(a.eth)}`;
+      const txt = a.type === "launch" ? `<b>${esc(t)}</b> launched` : a.shielded ? `<b>${esc(t)}</b> shielded ${a.type}` : `<b>${esc(t)}</b> ${a.type} ${fmtEth(a.eth)}`;
       return `<span class="ticker-item"><span class="badge ${a.type}" style="width:18px;height:18px;font-size:10px">${a.type === "buy" ? "↑" : a.type === "sell" ? "↓" : "✦"}</span>${txt}<span class="mono" style="color:var(--faint)">${ago(a.t)}</span></span>`;
     }).join("");
     // duplicated for a seamless loop
@@ -396,6 +410,8 @@
   }
 
   const icon = {
+    zec: `<svg class="zec-mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#f4b728"/><path d="M8 7.5h8v1.8l-5.3 5.4H16v1.8H8v-1.8l5.3-5.4H8z" fill="#1d1d1b"/><path d="M11.1 4.8h1.8v2.9h-1.8zM11.1 16.3h1.8v2.9h-1.8z" fill="#1d1d1b"/></svg>`,
+    shield: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/></svg>`,
     check: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`,
     rocket: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1z"/><path d="m12 15-3-3a22 22 0 0 1 2-4A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22.4 22.4 0 0 1-4 2z"/></svg>`,
     branch: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 4-6 3-11 6"/></svg>`,
@@ -608,7 +624,7 @@
   }
 
   // --- launch wizard ---
-  let wiz = { step: 1, repo: null, code: null, verified: false, name: "", ticker: "", initialBuy: 0 };
+  let wiz = { step: 1, repo: null, code: null, verified: false, name: "", ticker: "", initialBuy: 0, zcash: null };
   function viewLaunch() {
     return `<div class="page">
       <div class="page-head"><div class="eyebrow">launch</div><h2>launch a repository</h2><p>Four steps, about a minute. Repository data is read live from GitHub.</p></div>
@@ -682,7 +698,7 @@
             err.innerHTML = `this repository already has a market — <a href="#/m/${existing.id}" style="text-decoration:underline">open $${esc(existing.ticker)}</a>`;
             wiz.repo = null;
           } else {
-            if (wiz.repo?.fullName !== r.fullName) { wiz.code = null; wiz.verified = false; wiz.skip = false; wiz.name = ""; wiz.ticker = ""; }
+            if (wiz.repo?.fullName !== r.fullName) { wiz.code = null; wiz.verified = false; wiz.skip = false; wiz.name = ""; wiz.ticker = ""; wiz.zcash = null; }
             wiz.repo = r;
             if (r.archived) err.textContent = "note: this repository is archived";
           }
@@ -706,10 +722,13 @@
         wiz.code = "forkline-verify=" + [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
       }
       const r = wiz.repo;
-      const newFile = `https://github.com/${r.owner}/${r.name}/new/${encodeURIComponent(r.branch)}?filename=${encodeURIComponent(VERIFY_FILE)}&value=${encodeURIComponent(wiz.code)}`;
+      const fileBody = wiz.code + "\n# optional: receive tips in ZEC, e.g. zcash=u1...\n";
+      const newFile = `https://github.com/${r.owner}/${r.name}/new/${encodeURIComponent(r.branch)}?filename=${encodeURIComponent(VERIFY_FILE)}&value=${encodeURIComponent(fileBody)}`;
       panel.innerHTML = `<h3>verify ownership</h3>
         <p class="hint" style="margin:0">Commit a file named <span class="mono">${VERIFY_FILE}</span> to the <span class="mono">${esc(r.branch)}</span> branch of <span class="mono">${esc(r.fullName)}</span> containing this code. Only someone with write access can do that, so it proves you maintain the project.</p>
         <div class="codebox"><span id="vcode">${esc(wiz.code)}</span><button type="button" id="copyCode">copy</button></div>
+        <div class="zec-note">${icon.zec}<span>Optional: add a line <span class="mono">zcash=&lt;your address&gt;</span> to the same file to accept tips in ZEC on your market page. Because the address lives in your repository, nobody else can swap it for theirs.</span></div>
+        <div id="zecFound"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <a class="btn btn-outline press" href="${esc(newFile)}" target="_blank" rel="noopener noreferrer">create the file on GitHub ↗</a>
           <button class="btn btn-ink press" id="checkBtn" type="button">${wiz.verified ? "verified ✓" : "check now"}</button>
@@ -719,6 +738,14 @@
         <div class="wactions"><button class="btn btn-ghost press" id="back2">← back</button><button class="btn btn-ink press" id="next2" ${wiz.verified || wiz.skip ? "" : "disabled"}>continue →</button></div>`;
       $("#copyCode", panel).addEventListener("click", () => copy(wiz.code));
       $("#back2", panel).addEventListener("click", () => go(1));
+      const showZec = () => {
+        const z = wiz.zcash, el = $("#zecFound", panel);
+        if (!wiz.verified) { el.innerHTML = ""; return; }
+        el.innerHTML = !z ? `<div class="hint">No Zcash address found in ${VERIFY_FILE}. You can add one later and press "refresh from GitHub" on your market.</div>`
+          : z.invalid ? `<div class="err">The zcash line in ${VERIFY_FILE} was ignored: ${esc(z.invalid)}.</div>`
+          : `<div class="hint" style="color:var(--green)">ZEC tips enabled · ${esc(z.label)} <span class="mono">${esc(z.address.slice(0, 10))}…${esc(z.address.slice(-6))}</span></div>`;
+      };
+      showZec();
       const skip = $("#skipV", panel);
       skip.addEventListener("change", () => { wiz.skip = skip.checked; $("#next2", panel).disabled = !(wiz.verified || wiz.skip); });
       $("#checkBtn", panel).addEventListener("click", async (e) => {
@@ -732,6 +759,9 @@
           if (!panel.isConnected) return;
           if (res.ok) {
             wiz.verified = true; wiz.skip = false;
+            wiz.zcash = await zcashFrom(res.zcash);
+            if (!panel.isConnected) return;
+            showZec();
             err.style.color = "var(--green)"; err.textContent = "ownership confirmed";
             btn.textContent = "verified ✓";
             skip.checked = false; skip.disabled = true;
@@ -795,6 +825,7 @@
           <div><span>curve</span><b>constant product · ${fmt(CURVE_SUPPLY, 0)} on curve</b></div>
           <div><span>trade fee</span><b>${FEE * 100}% (half to creator)</b></div>
           <div><span>initial buy</span><b>${wiz.initialBuy ? fmtEth(wiz.initialBuy) : "none"}</b></div>
+          <div><span>ZEC tips</span><b>${wiz.zcash?.address ? esc(wiz.zcash.label) : "off"}</b></div>
         </div>
         <label class="check"><input type="checkbox" id="ack" /> I understand this is a demo: the curve is simulated and balances are play money.</label>
         <div class="err" id="lErr">${esc(short_)}</div>
@@ -808,7 +839,7 @@
         if (wallet.balance < wiz.initialBuy) { $("#lErr", panel).textContent = `you only have ${fmtEth(wallet.balance)}`; return; }
         if (state.markets.some((m) => m.repo.fullName.toLowerCase() === r.fullName.toLowerCase())) { $("#lErr", panel).textContent = "this repository was just launched"; return; }
         const m = freshMarket(r);
-        Object.assign(m, { id: uid(), name: wiz.name, ticker: wiz.ticker, verified: wiz.verified, creator: wallet.address, createdAt: Date.now() });
+        Object.assign(m, { id: uid(), name: wiz.name, ticker: wiz.ticker, verified: wiz.verified, creator: wallet.address, createdAt: Date.now(), zcash: wiz.verified && wiz.zcash?.address ? wiz.zcash : null });
         recordPrice(m);
         state.markets.push(m);
         logActivity({ type: "launch", marketId: m.id, who: wallet.address, repo: r.fullName });
@@ -820,7 +851,7 @@
           logActivity({ type: "buy", marketId: m.id, who: wallet.address, tokens: res.tokens, eth: res.spent });
         }
         save();
-        wiz = { step: 1, repo: null, code: null, verified: false, name: "", ticker: "", initialBuy: 0 };
+        wiz = { step: 1, repo: null, code: null, verified: false, name: "", ticker: "", initialBuy: 0, zcash: null };
         toast(`$${m.ticker} is live`);
         location.hash = "#/m/" + m.id;
       });
@@ -947,6 +978,7 @@
               <div class="list" id="tradeList">${tradesHtml(m)}</div>
             </div>
           </div>
+          ${m.verified ? zecCard(m) : ""}
           <div class="card" style="margin-top:16px">
             <div class="card-title">top holders</div>
             <div class="list">${topHolders(m)}</div>
@@ -968,18 +1000,71 @@
     const acts = state.activity.filter((a) => a.marketId === m.id).slice(0, 12);
     return acts.length ? acts.map((a) => `<div class="list-item">${activityLine(a)}<span class="t">${ago(a.t)}</span></div>`).join("") : `<div class="list-item muted">no trades yet</div>`;
   }
+  function zecCard(m) {
+    const z = m.zcash;
+    if (!z) {
+      const own = state.wallet && state.wallet.address === m.creator;
+      return `<div class="card zec-card" style="margin-top:16px"><div class="card-title">${icon.zec} support the maintainer in ZEC</div>
+        <div class="hint" style="padding:0 18px 16px">${own ? `Add a line <span class="mono">zcash=&lt;your address&gt;</span> to <span class="mono">${VERIFY_FILE}</span> in your repository, then press "refresh from GitHub" to accept private tips in Zcash.` : "The maintainer hasn't added a Zcash address yet."}</div></div>`;
+    }
+    return `<div class="card zec-card" style="margin-top:16px">
+      <div class="card-title">${icon.zec} support the maintainer in ZEC</div>
+      <div class="zec-body">
+        <div class="zec-qr" id="zecQr"></div>
+        <div class="zec-form">
+          <div class="hint">Tips go straight to the ${esc(z.label)} the maintainer committed to <span class="mono">${esc(m.repo.fullName)}/${VERIFY_FILE}</span>.${z.shielded ? " Shielded payments keep the amount and memo private." : " This is a transparent address, so the payment will be public."}</div>
+          <div class="quick" id="zecAmts">${["0.05", "0.1", "0.5", "1"].map((v, i) => `<button type="button" data-zec="${v}" class="${i === 1 ? "on" : ""}">${v} ZEC</button>`).join("")}</div>
+          <div class="input-row"><input id="zecAmt" class="input mono" type="number" min="0" step="0.00000001" inputmode="decimal" value="0.1" aria-label="amount in ZEC" /></div>
+          ${z.shielded ? `<input id="zecMemo" class="input" maxlength="512" placeholder="encrypted memo for the maintainer (optional)" aria-label="memo" />` : ""}
+          <div class="err" id="zecErr"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a class="btn btn-ink press" id="zecOpen" href="#">open in Zcash wallet</a>
+            <button class="btn btn-outline press" type="button" id="zecCopyUri">copy payment link</button>
+            <button class="btn btn-ghost press" type="button" id="zecCopyAddr">copy address</button>
+          </div>
+          <div class="mono small zec-addr">${esc(z.address)}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+  function mountZec(app, m) {
+    const z = m.zcash;
+    if (!z || !$("#zecQr", app)) return;
+    const amtIn = $("#zecAmt", app), memoIn = $("#zecMemo", app), err = $("#zecErr", app);
+    let uri = "";
+    const upd = () => {
+      const amount = Number(amtIn.value);
+      const memo = memoIn?.value || "";
+      err.textContent = "";
+      if (!(amount >= 0) || amount > 21000000) err.textContent = "enter an amount between 0 and 21,000,000 ZEC";
+      else if (window.Zcash.memoBytes(memo) > window.Zcash.MEMO_MAX) err.textContent = "memo is longer than 512 bytes";
+      uri = window.Zcash.paymentUri(z, { amount: amount > 0 && amount <= 21000000 ? amount : 0, memo, message: `Tip for ${m.repo.fullName} via Forkline` });
+      $("#zecOpen", app).href = uri;
+      $("#zecQr", app).innerHTML = window.Zcash.qrSvg(uri) || `<div class="hint" style="padding:12px">QR unavailable offline</div>`;
+      $$("#zecAmts button", app).forEach((b) => b.classList.toggle("on", Number(b.dataset.zec) === amount));
+    };
+    $$("#zecAmts button", app).forEach((b) => b.addEventListener("click", () => { amtIn.value = b.dataset.zec; upd(); }));
+    amtIn.addEventListener("input", upd);
+    memoIn?.addEventListener("input", upd);
+    $("#zecCopyUri", app).addEventListener("click", () => copy(uri));
+    $("#zecCopyAddr", app).addEventListener("click", () => copy(z.address));
+    upd();
+  }
   function topHolders(m) {
     const pos = new Map();
     for (const a of state.activity) {
       if (a.marketId !== m.id || (a.type !== "buy" && a.type !== "sell")) continue;
       pos.set(a.who, (pos.get(a.who) || 0) + (a.type === "buy" ? a.tokens : -a.tokens));
     }
+    const hidden = new Set(state.activity.filter((a) => a.marketId === m.id && a.shielded).map((a) => a.who));
     const rows = [...pos].filter(([, v]) => v > 1e-6).sort((a, b) => b[1] - a[1]).slice(0, 8);
     if (!rows.length) return `<div class="list-item muted">no holders yet — the first buyer shows up here</div>`;
     return rows.map(([who, amt]) => {
       const pct = (amt / TOTAL_SUPPLY) * 100;
       const tags = (who === m.creator ? ' <span class="pill">creator</span>' : "") + (state.wallet && who === state.wallet.address ? ' <span class="pill green">you</span>' : "");
-      return `<div class="list-item"><span class="mono small">${esc(short(who))}${tags}</span><span class="holder-bar" style="margin-left:auto"><i style="width:${Math.min(100, pct * 4)}%"></i></span><span class="t" style="margin-left:10px;min-width:56px;text-align:right">${pct.toFixed(2)}%</span></div>`;
+      const mine = state.wallet && who === state.wallet.address;
+      const label = hidden.has(who) && !mine ? `<span class="small muted">${icon.shield} shielded holder</span>` : `<span class="mono small">${esc(short(who))}</span>`;
+      return `<div class="list-item"><span>${label}${hidden.has(who) && !mine ? "" : tags}${mine && hidden.has(who) ? ' <span class="pill">shielded</span>' : ""}</span><span class="holder-bar" style="margin-left:auto"><i style="width:${Math.min(100, pct * 4)}%"></i></span><span class="t" style="margin-left:10px;min-width:56px;text-align:right">${pct.toFixed(2)}%</span></div>`;
     }).join("");
   }
   function holdersOf(m) {
@@ -1010,6 +1095,7 @@
       <circle id="hoverDot" r="4.5" fill="#fff" stroke="#7c4dff" stroke-width="2" vector-effect="non-scaling-stroke" visibility="hidden"/>
     </svg>`;
   }
+  let shieldPref = false;
   viewMarket.mount = (app, id) => {
     const m = state.markets.find((x) => x.id === id);
     if (!m) return;
@@ -1033,6 +1119,7 @@
           <div><span>balance</span><b>${w ? fmtEth(w.balance) : "not connected"}</b></div>
           <div><span>holding</span><b>${fmt(held)} $${esc(m.ticker)}</b></div>
         </div>
+        <label class="check shield-toggle"><input type="checkbox" id="shielded" ${shieldPref ? "checked" : ""} /> <span>${icon.shield} shielded trade: hide my address and amount from the public feed</span></label>
         <div class="err" id="tErr"></div>
         <button class="btn btn-lg ${side === "buy" ? "btn-ink" : "btn-outline"} press" id="goTrade" ${done && side === "buy" ? "disabled" : ""}>${!w ? "connect wallet" : done && side === "buy" ? "curve complete" : side}</button>`;
       const amt = $("#amt", box);
@@ -1059,6 +1146,7 @@
         }
       };
       amt.addEventListener("input", upd);
+      $("#shielded", box).addEventListener("change", (e) => { shieldPref = e.target.checked; });
       amt.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#goTrade", box).click(); } });
       $$("[data-side]", box).forEach((b) => b.addEventListener("click", () => { side = b.dataset.side; draw(); }));
       $$("[data-q]", box).forEach((b) => b.addEventListener("click", () => {
@@ -1083,7 +1171,7 @@
             const res = buy(m, Math.min(v, wal.balance));
             wal.balance = Math.max(0, wal.balance - res.spent);
             wal.holdings[m.id] = (wal.holdings[m.id] || 0) + res.tokens;
-            logActivity({ type: "buy", marketId: m.id, who: wal.address, tokens: res.tokens, eth: res.spent });
+            logActivity({ type: "buy", marketId: m.id, who: wal.address, tokens: res.tokens, eth: res.spent, shielded: shieldPref || undefined });
             toast(`bought ${fmt(res.tokens)} $${m.ticker}`);
           } else {
             const have = wal.holdings[m.id] || 0;
@@ -1093,7 +1181,7 @@
             wal.balance += res.eth;
             wal.holdings[m.id] = have - tok;
             if (wal.holdings[m.id] < 1e-6) delete wal.holdings[m.id];
-            logActivity({ type: "sell", marketId: m.id, who: wal.address, tokens: tok, eth: res.eth });
+            logActivity({ type: "sell", marketId: m.id, who: wal.address, tokens: tok, eth: res.eth, shielded: shieldPref || undefined });
             toast(`sold for ${fmtEth(res.eth)}`);
           }
           recordPrice(m);
@@ -1105,6 +1193,7 @@
     draw();
 
     $("#shareLink", app).addEventListener("click", () => copy(location.href));
+    mountZec(app, m);
     // add the page link to the X post when it is a real web address
     if (/^https?:/.test(location.href)) $("#shareX", app).href += encodeURIComponent(" " + location.href);
 
@@ -1162,6 +1251,14 @@
       try {
         const fresh = await fetchRepo(m.repo.owner, m.repo.name);
         m.repo = { ...m.repo, ...fresh };
+        if (m.verified) {
+          const text = await readVerifyFile(m.repo).catch(() => undefined);
+          if (text !== undefined) {
+            const z = await zcashFrom(window.Zcash?.addressFromFile(text));
+            m.zcash = z?.address ? z : null;
+            if (z?.invalid) toast("zcash line ignored: " + z.invalid);
+          }
+        }
         save();
         toast("repository stats updated");
         render();
@@ -1177,14 +1274,14 @@
     const tab = (v, l) => `<button data-sort="${v}" class="${activityFilter === v ? "active" : ""}">${l}</button>`;
     return `<div class="page">
       <div class="page-head"><div class="eyebrow">activity</div><h2>live activity</h2><p>Launches and trades across every market, newest first.</p></div>
-      <div class="rail"><div class="tabs" id="actTabs"><span class="tab-ind"></span>${tab("all", "all")}${tab("launch", "launches")}${tab("buy", "buys")}${tab("sell", "sells")}</div></div>
+      <div class="rail"><div class="tabs" id="actTabs"><span class="tab-ind"></span>${tab("all", "all")}${tab("launch", "launches")}${tab("buy", "buys")}${tab("sell", "sells")}${tab("shielded", "shielded")}</div></div>
       <div class="card feed"><div class="list" id="actList"></div></div>
     </div>`;
   }
   viewActivity.mount = (app) => {
     const list = $("#actList", app);
     const draw = () => {
-      const acts = state.activity.filter((a) => activityFilter === "all" || a.type === activityFilter).slice(0, 100);
+      const acts = state.activity.filter((a) => activityFilter === "all" || (activityFilter === "shielded" ? a.shielded : a.type === activityFilter)).slice(0, 100);
       list.innerHTML = acts.length ? acts.map((a) => `<div class="list-item">${activityLine(a)}<span class="t">${ago(a.t)} ago</span></div>`).join("")
         : `<div class="list-item muted">${state.activity.length ? "nothing of this kind yet" : "no activity yet — the first launch shows up here"}</div>`;
     };
@@ -1202,6 +1299,8 @@
         Each market starts with ${fmt(TOTAL_SUPPLY, 0)} tokens. ${fmt(CURVE_SUPPLY, 0)} are sold along a constant-product curve (<span class="mono">x · y = k</span>) with virtual reserves of ${V_ETH0} ETH and ${fmt(V_TOK0, 3)} tokens. The price rises as people buy and falls as they sell. Every trade pays a ${FEE * 100}% fee: half goes to the market creator and half to the treasury. When all ${fmt(CURVE_SUPPLY, 0)} curve tokens are sold, the market graduates and buying stops.
         <h3 style="font-size:18px;margin:18px 0 10px">verification</h3>
         Forkline generates a one-time code. The maintainer commits it in a <span class="mono">${VERIFY_FILE}</span> file on the default branch, and Forkline reads that file straight from GitHub. Only people with write access can do this. Repositories without the file can still launch, but they carry an unverified label.
+        <h3 style="font-size:18px;margin:18px 0 10px">zcash</h3>
+        Forkline uses Zcash in two places. First, maintainers of verified repositories can accept tips in ZEC by adding a <span class="mono">zcash=</span> line to their <span class="mono">${VERIFY_FILE}</span> file. Forkline checks the address checksum and shows a <a href="https://zips.z.cash/zip-0321" target="_blank" rel="noopener noreferrer" style="text-decoration:underline">ZIP-321</a> payment link and QR code that Zcash wallets open directly. Unified and Sapling addresses are shielded, so the amount and memo stay private. Tips are only offered on verified markets, because the address has to come from someone with write access to the repository. Second, shielded trades borrow the idea behind Zcash shielded transactions: the public feed shows that a trade happened, but not who made it or how much it was. On this demo curve the price still moves in public.
         <h3 style="font-size:18px;margin:18px 0 10px">this build</h3>
         This is a demo. GitHub data and verification are real, but the wallet, balances and curve are simulated in your browser and saved to local storage.
       </div>
