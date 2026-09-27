@@ -1,0 +1,124 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Forkline intro</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
+<style>html,body{margin:0;background:#8cc0ee}canvas{display:block}</style></head>
+<body><canvas id="c" width="1080" height="1080"></canvas>
+<script src="../../sky.js"></script>
+<script>
+const W = 1080, H = 1080, DUR = 15;
+const cv = document.getElementById("c"), ctx = cv.getContext("2d");
+const LOGO = new Path2D("M48.9 100.1C47.5 100.0 46.7 99.9 46.2 99.7C45.9 99.5 45.5 99.4 45.4 99.4C45.3 99.4 44.1 98.9 43.3 98.4C40.0 96.5 37.8 93.2 37.2 89.4C37.0 87.7 36.9 87.2 37.1 86.4C37.1 86.1 37.2 85.5 37.3 85.0C37.4 84.5 37.5 83.8 37.6 83.5C37.8 83.2 37.9 82.8 38.0 82.6C38.1 82.3 38.4 81.6 38.7 81.0C40.7 76.8 41.1 76.0 41.5 74.5C41.6 74.2 41.8 73.7 41.9 73.3C42.3 72.2 42.4 70.3 42.3 68.8C42.0 66.4 41.1 64.4 38.3 59.8C37.6 58.8 36.9 57.6 35.5 55.0C32.9 50.3 31.1 48.4 27.6 46.6C26.2 45.9 25.2 45.5 23.7 45.2C22.8 45.0 18.8 44.4 16.9 44.3C12.3 43.8 8.7 41.6 6.4 37.8C5.9 36.9 5.6 36.2 5.0 34.3C4.6 33.0 4.6 29.9 5.0 28.8C5.1 28.4 5.2 27.9 5.3 27.6C5.3 27.4 5.5 26.9 5.7 26.6C5.8 26.3 5.9 26.0 5.9 25.9C5.9 25.9 6.2 25.4 6.5 24.8C10.4 18.5 18.5 16.8 24.7 20.9C26.4 22.0 27.8 23.6 29.1 26.1C32.9 32.9 34.1 34.3 38.4 36.5C39.9 37.3 42.1 38.0 44.2 38.3C44.8 38.3 45.6 38.5 46.0 38.6C46.4 38.6 47.2 38.7 47.8 38.8C52.2 39.2 55.0 40.4 57.4 42.8C60.0 45.5 61.3 48.7 61.1 52.5C61.0 54.0 60.9 54.7 60.3 56.3C59.9 57.6 59.7 58.0 58.6 60.7C56.7 65.6 56.3 67.8 56.7 71.2C57.0 74.0 57.6 75.6 60.6 80.6C64.7 87.4 62.3 95.5 55.3 99.0C53.6 99.8 51.0 100.3 48.9 100.1ZM15.8 84.1C13.2 83.6 10.7 82.4 9.0 80.6C6.9 78.4 6.0 76.5 5.5 72.9C5.4 72.1 5.4 71.9 5.8 69.7C6.3 66.9 8.2 64.1 10.7 62.3C11.7 61.6 13.6 60.7 14.4 60.6C14.6 60.5 15.1 60.4 15.5 60.3C16.5 60.1 18.6 60.1 19.6 60.3C20.0 60.4 20.5 60.5 20.7 60.6C21.3 60.7 22.7 61.2 23.4 61.7C26.6 63.6 28.6 66.3 29.4 70.0C29.6 70.7 29.6 73.6 29.4 74.4C28.4 79.0 25.1 82.6 20.5 83.8C19.3 84.1 16.8 84.3 15.8 84.1ZM80.7 81.3C76.7 80.8 73.2 78.4 71.2 74.8C69.8 72.3 69.2 68.7 69.8 66.2C70.3 64.2 70.4 64.0 72.6 59.4C72.9 58.8 73.1 58.3 73.1 58.3C73.1 58.3 73.2 58.0 73.3 57.7C73.9 56.4 74.4 54.9 74.8 53.0C74.9 52.4 74.9 50.0 74.8 49.4C74.5 48.3 74.1 47.0 74.0 46.8C73.9 46.7 73.8 46.4 73.8 46.2C73.6 45.7 72.6 43.8 71.8 42.6C70.1 39.8 69.6 39.0 69.0 37.8C65.7 31.8 64.4 30.2 60.9 28.2C59.7 27.5 58.1 26.8 57.3 26.7C57.1 26.6 56.6 26.5 56.1 26.4C55.7 26.3 54.8 26.1 54.2 26.1C53.6 26.0 52.8 25.9 52.4 25.8C52.0 25.7 51.0 25.6 50.1 25.5C47.5 25.3 45.4 24.7 43.7 23.7C40.2 21.7 37.7 17.9 37.4 14.0C37.2 12.2 37.4 10.3 37.7 9.2C37.9 8.7 38.0 8.3 38.0 8.2C38.0 8.2 38.2 7.7 38.4 7.3C40.4 3.3 44.2 0.4 48.3 -0.0C49.5 -0.1 51.7 -0.1 52.6 0.1C54.9 0.5 57.4 1.9 59.1 3.7C60.3 4.8 60.7 5.5 63.0 9.6C64.8 12.8 66.5 14.9 68.3 16.2C70.8 17.9 73.2 18.9 76.1 19.3C76.7 19.4 77.6 19.6 78.1 19.7C78.5 19.8 79.6 19.9 80.5 20.0C82.4 20.2 84.4 20.7 85.5 21.1C91.9 23.6 95.2 30.5 93.0 37.0C92.7 38.1 91.9 40.1 91.3 41.7C89.5 46.1 89.0 48.3 89.1 51.0C89.2 54.5 89.9 56.3 92.9 61.3C94.5 64.0 95.1 66.0 95.1 68.7C95.1 73.5 92.4 77.9 88.2 80.0C85.9 81.2 83.4 81.6 80.7 81.3Z");
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const ease = (x) => 1 - Math.pow(1 - clamp(x), 3);
+const inOut = (x) => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+// fade window: in over [a, a+f], out over [b-f, b]
+const win = (t, a, b, f = .45) => clamp((t - a) / f) * clamp((b - t) / f);
+
+let clouds = [];
+function build() {
+  const seeds = [[0.05, .12, 520, .5], [.62, .08, 600, .8], [.30, .40, 440, .4], [.78, .52, 520, .7], [-.1, .70, 640, 1], [.45, .86, 700, .9], [.9, .9, 480, .6]];
+  clouds = seeds.map(([x, y, w, depth], i) => ({ sprite: Sky.cumulus(w, w * .46, 3000 + i * 71), x: x * W, y: y * H, w, h: w * .46, depth }));
+}
+function sky(t) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#5e9fe0"); g.addColorStop(.38, "#8cc0ee"); g.addColorStop(.72, "#bcdcf5"); g.addColorStop(1, "#e6f2fb");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const s = ctx.createRadialGradient(W * .84, H * .09, 0, W * .84, H * .09, W * .42);
+  s.addColorStop(0, "rgba(255,252,236,.95)"); s.addColorStop(.1, "rgba(255,246,214,.5)"); s.addColorStop(1, "rgba(255,240,205,0)");
+  ctx.fillStyle = s; ctx.fillRect(0, 0, W, H);
+  for (const c of clouds) {
+    const x = ((c.x + t * (14 + c.depth * 26) + c.w) % (W + c.w * 1.4)) - c.w;
+    ctx.globalAlpha = .7 + c.depth * .3;
+    ctx.drawImage(c.sprite, x, c.y - c.h / 2, c.w, c.h);
+  }
+  ctx.globalAlpha = 1;
+}
+function logo(cx, cy, size, rot = 0, color = "#0e0d14") {
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot); ctx.scale(size / 100, size / 100); ctx.translate(-50, -50);
+  ctx.fillStyle = color; ctx.fill(LOGO); ctx.restore();
+}
+function text(str, x, y, { size = 60, weight = 600, color = "#0e0d14", align = "center", font = "Geist", alpha = 1, track = -0.04, shadow = null } = {}) {
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "middle";
+  ctx.font = `${weight} ${size}px ${font}, system-ui, sans-serif`;
+  if ("letterSpacing" in ctx) ctx.letterSpacing = (track * size) + "px";
+  if (shadow) { ctx.shadowColor = shadow; ctx.shadowBlur = 40; ctx.shadowOffsetY = 4; }
+  ctx.fillText(str, x, y); ctx.restore();
+}
+function panel(x, y, w, h, alpha = 1, dark = false) {
+  ctx.save(); ctx.globalAlpha *= alpha;
+  ctx.shadowColor = "rgba(30,50,90,.16)"; ctx.shadowBlur = 50; ctx.shadowOffsetY = 18;
+  ctx.fillStyle = dark ? "#15141c" : "rgba(255,255,255,.9)";
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 26); ctx.fill(); ctx.restore();
+}
+function zecCoin(cx, cy, r, alpha = 1) {
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(cx, cy); ctx.scale(r / 12, r / 12); ctx.translate(-12, -12);
+  ctx.fillStyle = "#f4b728"; ctx.beginPath(); ctx.arc(12, 12, 11, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#1d1d1b"; ctx.fill(new Path2D("M8 7.5h8v1.8l-5.3 5.4H16v1.8H8v-1.8l5.3-5.4H8z")); ctx.fill(new Path2D("M11.1 4.8h1.8v2.9h-1.8zM11.1 16.3h1.8v2.9h-1.8z"));
+  ctx.restore();
+}
+function shield(cx, cy, s, alpha = 1) {
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(cx, cy); ctx.scale(s / 24, s / 24); ctx.translate(-12, -12);
+  ctx.strokeStyle = "#0e0d14"; ctx.lineWidth = 2; ctx.lineJoin = "round";
+  ctx.stroke(new Path2D("M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z")); ctx.stroke(new Path2D("M8.5 12l2.5 2.5 4.5-5")); ctx.restore();
+}
+
+function render(t) {
+  ctx.clearRect(0, 0, W, H);
+  sky(t);
+
+  // scene 1 (0–3.2): logo forms, wordmark
+  let a = win(t, 0, 3.2, .5);
+  if (a > 0) {
+    const k = ease(t / 1.4);
+    logo(W / 2, H / 2 - 50 + (1 - k) * 30, 200 * (.7 + .3 * k), (1 - k) * -0.6, `rgba(14,13,20,${a})`);
+    text("forkline", W / 2, H / 2 + 120, { size: 76, weight: 600, alpha: a * clamp((t - .8) / .6) });
+  }
+  // scene 2 (3.0–6.4): thesis
+  a = win(t, 3.0, 6.4);
+  if (a > 0) {
+    const k1 = ease((t - 3.0) / .8), k2 = ease((t - 3.4) / .8), k3 = ease((t - 4.1) / .8);
+    text("ship code.", W / 2, 430 + (1 - k1) * 40, { size: 150, weight: 700, alpha: a * k1, track: -0.06 });
+    text("launch it.", W / 2, 590 + (1 - k2) * 40, { size: 150, weight: 700, color: "#ffffff", alpha: a * k2, track: -0.06, shadow: "rgba(30,70,130,.35)" });
+    text("turn a GitHub repository into a market", W / 2, 730 + (1 - k3) * 20, { size: 38, weight: 500, color: "#1d3350", alpha: a * k3, track: -0.02 });
+  }
+  // scene 3 (6.2–9.8): three steps
+  a = win(t, 6.2, 9.8);
+  if (a > 0) {
+    const steps = [["01", "paste a repo", "github.com/you/project"], ["02", "prove you maintain it", "commit one line to .forkline"], ["03", "launch the market", "live in under a minute"]];
+    steps.forEach(([n, title, sub], i) => {
+      const k = ease((t - 6.3 - i * .45) / .7);
+      const y = 250 + i * 215 + (1 - k) * 50;
+      panel(170, y, 740, 170, a * k);
+      text(n, 240, y + 85, { size: 34, weight: 500, font: "Geist Mono", color: "#7c4dff", align: "left", alpha: a * k, track: 0 });
+      text(title, 320, y + 62, { size: 52, weight: 600, align: "left", alpha: a * k });
+      text(sub, 320, y + 118, { size: 30, weight: 500, font: "Geist Mono", color: "#5b6475", align: "left", alpha: a * k, track: 0 });
+    });
+  }
+  // scene 4 (9.6–12.6): zcash
+  a = win(t, 9.6, 12.6);
+  if (a > 0) {
+    const k = ease((t - 9.7) / .8), k2 = ease((t - 10.4) / .8);
+    panel(150, 300, 780, 220, a * k);
+    zecCoin(250, 410, 56, a * k);
+    text("tip maintainers in ZEC", 340, 380, { size: 50, weight: 600, align: "left", alpha: a * k });
+    text("QR + payment link, private memo", 340, 445, { size: 30, weight: 500, font: "Geist Mono", color: "#5b6475", align: "left", alpha: a * k, track: 0 });
+    panel(150, 570, 780, 220, a * k2);
+    shield(250, 680, 92, a * k2);
+    text("shielded trades", 340, 650, { size: 50, weight: 600, align: "left", alpha: a * k2 });
+    text("address and amount stay hidden", 340, 715, { size: 30, weight: 500, font: "Geist Mono", color: "#5b6475", align: "left", alpha: a * k2, track: 0 });
+  }
+  // scene 5 (12.4–15): end card
+  a = clamp((t - 12.4) / .6);
+  if (a > 0) {
+    const k = ease((t - 12.4) / 1);
+    logo(W / 2, 400, 170 * (.85 + .15 * k), 0, `rgba(14,13,20,${a})`);
+    text("forkline", W / 2, 560, { size: 92, weight: 600, alpha: a });
+    text("launch open source", W / 2, 640, { size: 40, weight: 500, color: "#1d3350", alpha: a * clamp((t - 12.9) / .5), track: -0.02 });
+    ctx.save(); ctx.globalAlpha = a * clamp((t - 13.3) / .5);
+    ctx.fillStyle = "#0e0d14"; ctx.beginPath(); ctx.roundRect(W / 2 - 190, 720, 380, 84, 42); ctx.fill(); ctx.restore();
+    text("@Forklinetech", W / 2, 762, { size: 38, weight: 500, color: "#ffffff", alpha: a * clamp((t - 13.3) / .5), track: -0.01 });
+  }
+}
+window.ready = (async () => { await document.fonts.load("600 60px Geist"); await document.fonts.load("500 30px 'Geist Mono'"); await document.fonts.ready; build(); render(0); return true; })();
+window.render = render; window.DUR = DUR;
+</script></body></html>

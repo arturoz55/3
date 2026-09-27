@@ -187,5 +187,5 @@
     else requestAnimationFrame(tick);
   }
 
-  window.Sky = { start: startSky };
+  window.Sky = { start: startSky, cumulus };
 })();

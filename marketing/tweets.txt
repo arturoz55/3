@@ -1,0 +1,43 @@
+=== BIO ===
+Launch open source. Turn a real GitHub repo into a verified market: paste the repo, prove you maintain it, launch. Tips in $ZEC. $FORK
+
+=== LAUNCH ===
+$FORK is live.
+
+Forkline turns a public GitHub repository into a market. Paste a repo, prove you maintain it with one committed line, launch.
+
+Maintainers can take private tips in $ZEC.
+
+CA: [CONTRACT ADDRESS]
+[SITE LINK]
+
+=== T1 ===
+Most open source gets stars, not support.
+
+Forkline gives a repository its own market. Stars, forks, commits and contributors come live from GitHub, so what you back is real work you can check.
+
+$FORK
+
+=== T2 ===
+How do you prove a repo is yours?
+
+Forkline gives you a one-time code. Commit it in a .forkline file. Only someone with write access can do that, so a "verified" label means the maintainer launched it.
+
+=== T3 ===
+Why $ZEC on Forkline?
+
+Maintainers add their Zcash address to the same .forkline file in their repo. Nobody else can swap it for theirs.
+
+Tip with a QR code or a payment link. Shielded tips keep the amount and memo private.
+
+=== T4 ===
+Shielded trades, inspired by Zcash.
+
+Tick one box and the public feed shows that a trade happened, but not who made it or how much it was.
+
+=== T5 ===
+The demo is open: a play wallet with 10 ETH, a real ownership check, live GitHub stats.
+
+Launch a repo, trade on the curve, star what you'd back.
+
+[SITE LINK]
