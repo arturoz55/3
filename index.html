@@ -6,9 +6,7 @@
   <title>Forkline</title>
   <meta name="description" content="Forkline turns a public GitHub repository into a verified, community-backed market. Paste a repo, prove you maintain it, launch." />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap" />
+  <!-- Google Fonts load only after consent (see consent.js) -->
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -52,6 +50,8 @@
         <a href="#/how">how it works</a>
         <a href="#/profile">profile</a>
         <a href="#" data-xlink target="_blank" rel="noopener noreferrer">X</a>
+        <a href="#/privacy">privacy</a>
+        <button type="button" class="linkish" data-consent-open>cookie settings</button>
         <a href="LICENSE" target="_blank" rel="noopener">MIT license</a>
       </div>
     </div>
@@ -68,6 +68,7 @@
   <div class="toast-host" id="toasts" aria-live="polite"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <script src="consent.js"></script>
   <script src="sky.js"></script>
   <script src="zcash.js"></script>
   <script src="app.js"></script>

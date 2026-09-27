@@ -301,6 +301,7 @@
     [/^\/how$/, viewHow],
     [/^\/treasury$/, viewTreasury],
     [/^\/profile$/, viewProfile],
+    [/^\/privacy$/, viewPrivacy],
     [/^\/m\/([a-z0-9]+)$/, viewMarket],
   ];
   let cleanup = [];
@@ -1386,6 +1387,30 @@
       state = defaultState(); save(); toast("demo data cleared"); location.hash = "#/";
       render();
     });
+  };
+
+  function viewPrivacy() {
+    const c = window.Consent?.read();
+    const row = (k, v) => `<div class="list-item">${k}<span class="t" style="white-space:normal;text-align:right">${v}</span></div>`;
+    return `<div class="page">
+      <div class="page-head"><div class="eyebrow">privacy</div><h2>cookies &amp; storage</h2><p>Forkline doesn't use tracking, analytics or advertising cookies. Here is everything the site stores or sends, and where.</p></div>
+      <div class="card"><div class="card-title">stored in your browser</div><div class="list">
+        ${row(`<span class="mono small">forkline:v1</span>`, "demo wallet, markets, trades, watchlist and comments · necessary")}
+        ${row(`<span class="mono small">forkline:consent</span>`, "your choice on this page · necessary")}
+      </div><div class="hint" style="padding:0 18px 16px">Both live in local storage on this device only. Nobody else can read them, and "reset demo data" in your profile or clearing site data removes them.</div></div>
+      <div class="card" style="margin-top:16px"><div class="card-title">sent to other services</div><div class="list">
+        ${row("GitHub", "repository stats and your .forkline file, only when you look up, verify or refresh a repository")}
+        ${row("Google Fonts", c?.fonts ? '<span style="color:var(--green)">on</span> · the Geist typeface, which shares your IP address with Google' : "off · the site uses your system font")}
+        ${row("cdnjs (Cloudflare)", "the QR code library for ZEC tips")}
+        ${row("X", "only if you open our profile or use a share link")}
+      </div></div>
+      <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><button class="btn btn-ink press" type="button" data-consent-open>change cookie settings</button></div>
+    </div>`;
+  }
+  viewPrivacy.mount = () => {
+    const re = () => { if (location.hash === "#/privacy") render(); };
+    document.addEventListener("consentchange", re);
+    cleanup.push(() => document.removeEventListener("consentchange", re));
   };
 
   function viewNotFound() {
