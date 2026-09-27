@@ -1,6 +1,6 @@
 /* Forkline — procedural sky.
  * Draws soft cumulus clouds with fractal value noise on canvas (no image assets),
- * drifts them across a fixed sky layer, and can turn any panel into a cloud. */
+ * and drifts them across a fixed sky layer. */
 (() => {
   "use strict";
 
@@ -111,62 +111,6 @@
     return renderCloud(w, h, { puffs, base, seed, res: 0.45 });
   }
 
-  // a cloud that surrounds a panel of size pw x ph: lumpy puffs all around,
-  // with a flat, bright interior so the text on it stays readable
-  const panelCache = new Map();
-  function panelCloud(pw, ph, seed) {
-    const key = [Math.round(pw / 8), Math.round(ph / 8), seed].join(":");
-    if (panelCache.has(key)) return panelCache.get(key);
-    const m = 64;
-    const w = pw + m * 2, h = ph + m * 2;
-    const r = rng(seed);
-    const core = { x: m + 6, y: m + 6, w: pw - 12, h: ph - 12 };
-    const puffs = [];
-    // body: overlapping puffs filling the panel
-    const rows = Math.max(1, Math.round(ph / 70));
-    const cols = Math.max(2, Math.round(pw / 70));
-    const rr = Math.max(ph / (rows + 0.6), 46);
-    for (let y = 0; y < rows; y++) for (let x = 0; x <= cols; x++) {
-      puffs.push({ x: m + (x / cols) * pw + (r() - 0.5) * 16, y: m + ((y + 0.5) / rows) * ph, r: rr * (0.7 + r() * 0.25) });
-    }
-    // crown: big billows rising above the top edge, tallest toward the middle
-    const crown = Math.max(3, Math.round(pw / 60));
-    for (let i = 0; i <= crown; i++) {
-      const f = i / crown;
-      const mid = 1 - Math.abs(f - 0.5) * 2;
-      const rad = 26 + mid * 22 + r() * 16;
-      puffs.push({ x: m + f * pw + (r() - 0.5) * 18, y: m + rad * 0.35 - mid * 10, r: rad });
-    }
-    // side and base puffs: smaller, so the underside reads flatter
-    const down = Math.max(1, Math.round(ph / 50));
-    for (let i = 0; i <= down; i++) {
-      const y = m + (i / down) * ph;
-      puffs.push({ x: m + 2 - r() * 8, y, r: 24 + r() * 16 });
-      puffs.push({ x: m + pw - 2 + r() * 8, y, r: 24 + r() * 16 });
-    }
-    for (let i = 0; i <= cols; i++) puffs.push({ x: m + (i / cols) * pw, y: m + ph - 4, r: 18 + r() * 10 });
-    const cv = renderCloud(w, h, { puffs, core, seed, res: 0.5 });
-    const out = { canvas: cv, margin: m };
-    panelCache.set(key, out);
-    return out;
-  }
-
-  // turn an element into a cloud: paints a cloud canvas behind its content
-  function cloudify(el, seed = 1) {
-    el.querySelector(":scope > .cloud-bg")?.remove();
-    const pw = el.offsetWidth, ph = el.offsetHeight;
-    if (!pw || !ph) return;
-    const { canvas, margin } = panelCloud(pw, ph, seed);
-    const c = document.createElement("canvas");
-    c.width = canvas.width; c.height = canvas.height;
-    c.getContext("2d").drawImage(canvas, 0, 0);
-    c.className = "cloud-bg";
-    c.setAttribute("aria-hidden", "true");
-    c.style.cssText = `left:${-margin}px;top:${-margin}px;width:${pw + margin * 2}px;height:${ph + margin * 2}px`;
-    el.prepend(c);
-    el.classList.add("is-cloud");
-  }
-
   // ---------- drifting sky layer ----------
   function startSky() {
     const cv = document.createElement("canvas");
@@ -243,5 +187,5 @@
     else requestAnimationFrame(tick);
   }
 
-  window.Sky = { cloudify, start: startSky };
+  window.Sky = { start: startSky };
 })();

@@ -11,11 +11,13 @@
   const V_ETH0 = 30; // virtual quote reserve
   const V_TOK0 = 1_073_000_000; // virtual token reserve
   const FEE = 0.01; // 1% per trade: half to creator, half to treasury
+  const FAUCET_AMOUNT = 5;
+  const FAUCET_COOLDOWN = 3600000; // 1 hour
   const START_BALANCE = 10;
   const VERIFY_FILE = ".forkline";
 
   // ---------- state ----------
-  const defaultState = () => ({ wallet: null, markets: [], activity: [], treasury: 0 });
+  const defaultState = () => ({ wallet: null, markets: [], activity: [], treasury: 0, watch: [], comments: {} });
   let state = load();
 
   function load() {
@@ -24,7 +26,8 @@
       if (!raw) return defaultState();
       const s = JSON.parse(raw);
       if (!s || !Array.isArray(s.markets) || !Array.isArray(s.activity)) return defaultState();
-      return { ...defaultState(), ...s };
+      const d = defaultState();
+      return { ...d, ...s, watch: Array.isArray(s.watch) ? s.watch : [], comments: s.comments && typeof s.comments === "object" ? s.comments : {} };
     } catch {
       return defaultState();
     }
@@ -64,6 +67,7 @@
     el.className = "toast";
     el.textContent = msg;
     host.appendChild(el);
+    while (host.children.length > 3) host.firstElementChild.remove();
     setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 320); }, 3200);
   }
 
@@ -118,6 +122,39 @@
     m.creatorFees += fee / 2;
     state.treasury += fee / 2;
   }
+  const isWatched = (id) => state.watch.includes(id);
+  function toggleWatch(id) {
+    const m = state.markets.find((x) => x.id === id);
+    if (!m) return;
+    state.watch = isWatched(id) ? state.watch.filter((x) => x !== id) : [...state.watch, id];
+    save();
+    toast(isWatched(id) ? `$${m.ticker} added to your watchlist` : `$${m.ticker} removed from your watchlist`);
+  }
+  function starBtn(id, extra = "") {
+    const on = isWatched(id);
+    return `<button type="button" class="star${on ? " on" : ""}" data-watch="${id}" aria-pressed="${on}" aria-label="${on ? "remove from" : "add to"} watchlist" title="${on ? "remove from" : "add to"} watchlist" ${extra}>${on ? "★" : "☆"}</button>`;
+  }
+  // price change caused by a trade, as a percentage of the current price
+  function priceImpact(m, side, amount) {
+    const sim = { vEth: m.vEth, vTok: m.vTok, sold: m.sold };
+    const before = sim.vEth / sim.vTok;
+    const k = sim.vEth * sim.vTok;
+    if (side === "buy") {
+      const q = curve.buyQuote(m, amount);
+      sim.vTok -= q.out; sim.vEth = k / sim.vTok;
+    } else {
+      sim.vTok += amount; sim.vEth = k / sim.vTok;
+    }
+    return ((sim.vEth / sim.vTok - before) / before) * 100;
+  }
+  // what the connected wallet paid in, net of what it took out, per market
+  function costBasis(marketId) {
+    const w = state.wallet;
+    if (!w) return 0;
+    return state.activity.filter((a) => a.marketId === marketId && a.who === w.address)
+      .reduce((s, a) => s + (a.type === "buy" ? a.eth : a.type === "sell" ? -a.eth : 0), 0);
+  }
+
   function recordPrice(m) {
     m.history.push({ t: Date.now(), p: curve.price(m) });
     if (m.history.length > 400) m.history.splice(0, m.history.length - 400);
@@ -298,7 +335,10 @@
           <div class="mc-name">${esc(m.name)} <span class="muted mono small">$${esc(m.ticker)}</span></div>
           <div class="mc-repo">${esc(m.repo.fullName)}</div>
         </div>
-        ${m.example ? `<span class="pill">example</span>` : m.verified ? `<span class="verified">${icon.check} verified</span>` : `<span class="unverified">unverified</span>`}
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          ${starBtn(m.id)}
+          ${m.example ? `<span class="pill">example</span>` : m.verified ? `<span class="verified">${icon.check} verified</span>` : `<span class="unverified">unverified</span>`}
+        </div>
       </div>
       <div class="mc-stats">
         <div class="stat"><div class="k">mcap</div><div class="v">${fmt(curve.mcap(m))} Ξ</div></div>
@@ -391,6 +431,7 @@
       </div>
     </section>
     ${tickerHtml()}
+    ${statsStrip()}
     <div class="lifecycle"><span>repo</span><span>proof</span><span>market</span><span>growth</span></div>
 
     <section class="section reveal">
@@ -450,11 +491,6 @@
     }, 55, true);
     cleanup.push(() => timers.forEach(clearTimeout));
 
-    // turn the white hero panels into clouds
-    const makeClouds = () => $$(".float", app).forEach((f, i) => f.isConnected && window.Sky?.cloudify(f, 11 + i * 13));
-    makeClouds();
-    document.fonts?.ready.then(() => { if (app.contains($(".float", app))) makeClouds(); });
-
     // pointer parallax on floating panels
     const floats = $$("[data-depth]", app);
     const move = (e) => {
@@ -471,6 +507,14 @@
       cleanup.push(() => window.removeEventListener("pointermove", move));
     }
   };
+
+  function statsStrip() {
+    const vol = state.markets.reduce((s, m) => s + volume(m), 0);
+    const trades = state.activity.filter((a) => a.type !== "launch").length;
+    const verified = state.markets.filter((m) => m.verified).length;
+    const cell = (k, v) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`;
+    return `<div class="stats-strip">${cell("markets", state.markets.length)}${cell("verified", verified)}${cell("trades", trades)}${cell("volume", fmt(vol) + " Ξ")}${cell("treasury", state.treasury.toFixed(3) + " Ξ")}</div>`;
+  }
 
   function howSteps() {
     return `<div class="section-head"><div><div class="eyebrow">how it works</div><h2>from repository to market</h2></div></div>
@@ -492,8 +536,9 @@
           <button data-sort="new">recently launched</button>
           <button data-sort="active">most active</button>
         </div>
-        <input class="input" id="q" placeholder="search name, ticker or repo" aria-label="search markets" />
+        <input class="input" id="q" placeholder="search name, ticker or repo  ( / )" aria-label="search markets" />
         <label class="check" style="align-items:center"><input type="checkbox" id="onlyVerified" /> verified only</label>
+        <label class="check" style="align-items:center"><input type="checkbox" id="onlyWatch" /> watchlist</label>
       </div>
       <div id="marketList"></div>
     </div>`;
@@ -504,18 +549,30 @@
     const draw = () => {
       const q = $("#q", app).value.trim().toLowerCase();
       const onlyV = $("#onlyVerified", app).checked;
-      let ms = state.markets.filter((m) => (!onlyV || m.verified) &&
+      const onlyW = $("#onlyWatch", app).checked;
+      let ms = state.markets.filter((m) => (!onlyV || m.verified) && (!onlyW || isWatched(m.id)) &&
         (!q || [m.name, m.ticker, m.repo.fullName].some((s) => s.toLowerCase().includes(q))));
       const trades = (m) => state.activity.filter((a) => a.marketId === m.id).length;
       if (sort === "trending") ms.sort((a, b) => volume(b) - volume(a) || b.createdAt - a.createdAt);
       if (sort === "new") ms.sort((a, b) => b.createdAt - a.createdAt);
       if (sort === "active") ms.sort((a, b) => trades(b) - trades(a) || (b.repo.commits - a.repo.commits));
       list.innerHTML = ms.length ? `<div class="grid">${ms.map(marketCard).join("")}</div>` :
-        `<div class="empty"><p>${state.markets.length ? "no markets match that filter" : "no markets yet — launch the first repository"}</p><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><a href="#/launch" class="btn btn-ink press">launch a repository</a>${state.markets.length ? "" : `<button class="btn btn-outline press" data-seed type="button">load example markets</button>`}</div></div>`;
+        `<div class="empty"><p>${!state.markets.length ? "no markets yet — launch the first repository" : onlyW && !state.watch.length ? "your watchlist is empty — tap ☆ on a market to follow it" : "no markets match that filter"}</p><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><a href="#/launch" class="btn btn-ink press">launch a repository</a>${state.markets.length ? "" : `<button class="btn btn-outline press" data-seed type="button">load example markets</button>`}</div></div>`;
     };
     setupTabs($("#sortTabs", app), (v) => { sort = v; draw(); });
     $("#q", app).addEventListener("input", draw);
     $("#onlyVerified", app).addEventListener("change", draw);
+    $("#onlyWatch", app).addEventListener("change", draw);
+    document.addEventListener("watchchange", draw);
+    const key = (e) => {
+      const q = $("#q", app);
+      const ae = document.activeElement;
+      const typing = ae && (ae.tagName === "TEXTAREA" || (ae.tagName === "INPUT" && !/checkbox|radio|button|submit/.test(ae.type)));
+      if (e.key === "/" && !typing) { e.preventDefault(); q.focus(); }
+      else if (e.key === "Escape" && document.activeElement === q) { q.value = ""; q.blur(); draw(); }
+    };
+    document.addEventListener("keydown", key);
+    cleanup.push(() => { document.removeEventListener("keydown", key); document.removeEventListener("watchchange", draw); });
     draw();
   };
 
@@ -784,7 +841,18 @@
     render();
   }
   document.addEventListener("click", (e) => {
-    if (e.target.closest("[data-seed]")) { e.preventDefault(); seedExamples(); }
+    if (e.target.closest("[data-seed]")) { e.preventDefault(); seedExamples(); return; }
+    const w = e.target.closest("[data-watch]");
+    if (w) {
+      e.preventDefault(); e.stopPropagation();
+      toggleWatch(w.dataset.watch);
+      const on = isWatched(w.dataset.watch);
+      $$(`[data-watch="${w.dataset.watch}"]`).forEach((b) => {
+        b.classList.toggle("on", on); b.textContent = on ? "★" : "☆"; b.setAttribute("aria-pressed", on);
+        b.setAttribute("aria-label", (on ? "remove from" : "add to") + " watchlist"); b.title = b.getAttribute("aria-label");
+      });
+      document.dispatchEvent(new CustomEvent("watchchange"));
+    }
   });
 
   function freshMarket(repo) {
@@ -818,17 +886,20 @@
         <div class="avatar" style="background-image:url('${esc(r.avatar)}')"></div>
         <div style="flex:1;min-width:200px">
           <h1>${esc(m.name)} <span class="muted mono" style="font-size:18px">$${esc(m.ticker)}</span></h1>
-          <div class="mc-repo" style="margin-top:4px">${m.example ? `${esc(r.fullName)} · <span class="pill">example data</span>` : `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.fullName)} ↗</a>`} · ${m.example ? "" : m.verified ? `<span class="verified">${icon.check} verified maintainer</span>` : `<span class="unverified">unverified</span>`}</div>
+          <div class="mc-repo" style="margin-top:4px">${m.example ? `${esc(r.fullName)} · <span class="pill">example data</span>` : `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.fullName)} ↗</a> · ${m.verified ? `<span class="verified">${icon.check} verified maintainer</span>` : `<span class="unverified">unverified</span>`}`}</div>
         </div>
         <div style="text-align:right">
           <div class="price-big" id="priceBig">${fmtPrice(curve.price(m))}</div>
           <div class="small ${change >= 0 ? "up" : "down"}">${change >= 0 ? "+" : ""}${change.toFixed(2)}% · ETH per token</div>
-          <button class="btn btn-ghost press" id="shareLink" type="button" style="margin-top:8px;height:30px;font-size:12px;background:rgba(255,255,255,.6)">copy link</button>
+          <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
+            ${starBtn(m.id, 'style="height:30px;width:30px;background:rgba(255,255,255,.6)"')}
+            <button class="btn btn-ghost press" id="shareLink" type="button" style="height:30px;font-size:12px;background:rgba(255,255,255,.6)">copy link</button>
+          </div>
         </div>
       </div>
       <div class="market">
         <div>
-          <div class="card chart">${chartSvg(m)}</div>
+          <div class="card chart" id="chart">${chartSvg(m)}<div class="chart-tip" id="chartTip" hidden></div></div>
           <div class="kv" style="margin-top:16px">
             <div class="stat card"><div class="k">market cap</div><div class="v">${fmt(curve.mcap(m))} Ξ</div></div>
             <div class="stat card"><div class="k">volume</div><div class="v">${fmt(volume(m))} Ξ</div></div>
@@ -857,6 +928,14 @@
               <div class="card-title">trades</div>
               <div class="list" id="tradeList">${tradesHtml(m)}</div>
             </div>
+          </div>
+          <div class="card" style="margin-top:16px">
+            <div class="card-title">discussion <span class="muted small" id="cCount"></span></div>
+            <form id="cForm" class="comment-form">
+              <input id="cText" class="input" maxlength="280" placeholder="${state.wallet ? "say something about this project" : "connect a wallet to comment"}" autocomplete="off" />
+              <button class="btn btn-ink press" type="submit">post</button>
+            </form>
+            <div class="list" id="cList"></div>
           </div>
         </div>
         <div class="card trade" id="tradeBox"></div>
@@ -891,6 +970,8 @@
       ${[0.25, 0.5, 0.75].map((f) => `<line x1="0" x2="${W}" y1="${H * f}" y2="${H * f}" stroke="rgba(24,22,40,.06)" stroke-dasharray="4 6"/>`).join("")}
       <path class="area" d="${area}"/><path class="path" d="${d}" vector-effect="non-scaling-stroke"/>
       <circle cx="${x(pts.length - 1)}" cy="${y(pts[pts.length - 1].p)}" r="4" fill="#7c4dff"/>
+      <line id="hoverLine" x1="0" x2="0" y1="0" y2="${H}" stroke="rgba(124,77,255,.35)" stroke-width="1" vector-effect="non-scaling-stroke" visibility="hidden"/>
+      <circle id="hoverDot" r="4.5" fill="#fff" stroke="#7c4dff" stroke-width="2" vector-effect="non-scaling-stroke" visibility="hidden"/>
     </svg>`;
   }
   viewMarket.mount = (app, id) => {
@@ -912,6 +993,7 @@
         <div class="summary">
           <div><span>you receive</span><b id="recv">—</b></div>
           <div><span>fee (${FEE * 100}%)</span><b id="feeOut">—</b></div>
+          <div><span>price impact</span><b id="impact">—</b></div>
           <div><span>balance</span><b>${w ? fmtEth(w.balance) : "not connected"}</b></div>
           <div><span>holding</span><b>${fmt(held)} $${esc(m.ticker)}</b></div>
         </div>
@@ -922,12 +1004,17 @@
         const v = Number(amt.value);
         const err = $("#tErr", box);
         err.textContent = "";
-        if (!(v > 0)) { $("#recv", box).textContent = "—"; $("#feeOut", box).textContent = "—"; return; }
+        const imp = $("#impact", box);
+        if (!(v > 0)) { $("#recv", box).textContent = "—"; $("#feeOut", box).textContent = "—"; imp.textContent = "—"; imp.style.color = ""; return; }
+        const pi = priceImpact(m, side, v);
+        imp.textContent = (pi >= 0 ? "+" : "") + pi.toFixed(2) + "%";
+        imp.style.color = Math.abs(pi) >= 5 ? "var(--red)" : "";
         if (side === "buy") {
           const q = curve.buyQuote(m, v);
           $("#recv", box).textContent = fmt(q.out) + " $" + m.ticker;
           $("#feeOut", box).textContent = fmtEth(q.fee);
           if (w && v > w.balance + 1e-12) err.textContent = "not enough balance";
+          else if (Math.abs(pi) >= 5) err.textContent = "large trade: this moves the price by more than 5%";
         } else {
           const q = curve.sellQuote(m, v);
           $("#recv", box).textContent = fmtEth(q.out);
@@ -981,6 +1068,55 @@
     draw();
 
     $("#shareLink", app).addEventListener("click", () => copy(location.href));
+
+    // chart hover: nearest recorded price
+    const chart = $("#chart", app), svg = $("svg", chart), tip = $("#chartTip", chart);
+    const line = $("#hoverLine", svg), dot = $("#hoverDot", svg);
+    const hist = m.history.length > 1 ? m.history : null;
+    const hide = () => { tip.hidden = true; line.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); };
+    const onMove = (e) => {
+      if (!hist) return;
+      const rect = svg.getBoundingClientRect();
+      const fx = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      const W = 700, H = 260, P = 10;
+      const i = Math.round(((fx * W - P) / (W - 2 * P)) * (hist.length - 1));
+      const idx = Math.min(hist.length - 1, Math.max(0, i));
+      const ps = hist.map((h) => h.p);
+      let lo = Math.min(...ps), hi = Math.max(...ps);
+      if (hi - lo < hi * 0.02) { hi *= 1.02; lo *= 0.98; }
+      const px = P + (idx / (hist.length - 1)) * (W - 2 * P);
+      const py = H - P - ((hist[idx].p - lo) / (hi - lo)) * (H - 2 * P);
+      line.setAttribute("x1", px); line.setAttribute("x2", px); line.setAttribute("visibility", "visible");
+      dot.setAttribute("cx", px); dot.setAttribute("cy", py); dot.setAttribute("visibility", "visible");
+      tip.hidden = false;
+      tip.innerHTML = `<b>${fmtPrice(hist[idx].p)}</b><span>${new Date(hist[idx].t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>`;
+      const left = (px / W) * rect.width;
+      tip.style.left = Math.min(rect.width - tip.offsetWidth, Math.max(0, left - tip.offsetWidth / 2)) + 18 + "px";
+    };
+    svg.addEventListener("pointermove", onMove);
+    svg.addEventListener("pointerleave", hide);
+
+    // discussion
+    const cList = $("#cList", app);
+    const drawComments = () => {
+      const cs = state.comments[m.id] || [];
+      $("#cCount", app).textContent = cs.length ? "· " + cs.length : "";
+      cList.innerHTML = cs.length ? cs.slice().reverse().map((c) => `<div class="list-item comment"><span class="mono small muted">${esc(short(c.who))}${c.who === m.creator ? ' <span class="pill">creator</span>' : ""}</span><span class="ctext">${esc(c.text)}</span><span class="t">${ago(c.t)}</span></div>`).join("")
+        : `<div class="list-item muted">no comments yet — start the conversation</div>`;
+    };
+    drawComments();
+    $("#cForm", app).addEventListener("submit", (e) => {
+      e.preventDefault();
+      const input = $("#cText", app);
+      const text = input.value.trim().replace(/\s+/g, " ");
+      if (!state.wallet) { connect(); input.placeholder = "say something about this project"; }
+      if (!text) { input.focus(); return; }
+      (state.comments[m.id] ||= []).push({ who: state.wallet.address, text: text.slice(0, 280), t: Date.now() });
+      if (state.comments[m.id].length > 200) state.comments[m.id].splice(0, state.comments[m.id].length - 200);
+      save();
+      input.value = "";
+      drawComments();
+    });
     $("#refreshRepo", app)?.addEventListener("click", async (e) => {
       const b = e.currentTarget;
       b.disabled = true; b.textContent = "refreshing…";
@@ -1062,10 +1198,16 @@
         <div class="card"><div class="eyebrow">creator earnings</div><div class="v">${created.reduce((s, m) => s + m.creatorFees, 0).toFixed(4)} Ξ</div></div>
       </div>
       <div class="subgrid" style="margin-top:0">
-        <div class="card"><div class="card-title">holdings</div><div class="list">${holdings.length ? holdings.map((h) => `<div class="list-item"><a href="#/m/${h.m.id}">$${esc(h.m.ticker)}</a><span class="t">${fmt(h.amt)}</span></div>`).join("") : `<div class="list-item muted">nothing yet</div>`}</div></div>
+        <div class="card"><div class="card-title">holdings</div><div class="list">${holdings.length ? holdings.map((h) => {
+          const val = curve.sellQuote(h.m, h.amt).out;
+          const pnl = val - costBasis(h.m.id);
+          return `<div class="list-item"><a href="#/m/${h.m.id}">$${esc(h.m.ticker)}</a><span class="muted mono small">${fmt(h.amt)}</span><span class="t" style="color:${pnl >= 0 ? "var(--green)" : "var(--red)"}">${pnl >= 0 ? "+" : ""}${pnl.toFixed(4)} Ξ</span></div>`;
+        }).join("") : `<div class="list-item muted">nothing yet</div>`}</div></div>
+        <div class="card"><div class="card-title">watchlist</div><div class="list">${state.watch.length ? state.watch.map((id) => state.markets.find((x) => x.id === id)).filter(Boolean).map((m) => { const c = priceChange(m); return `<div class="list-item"><a href="#/m/${m.id}">$${esc(m.ticker)}</a><span class="muted mono small">${fmtPrice(curve.price(m))}</span><span class="t ${c >= 0 ? "up" : "down"}">${c >= 0 ? "+" : ""}${c.toFixed(1)}%</span></div>`; }).join("") : `<div class="list-item muted">tap ☆ on any market to follow it</div>`}</div></div>
         <div class="card"><div class="card-title">launched</div><div class="list">${created.length ? created.map((m) => `<div class="list-item"><a href="#/m/${m.id}">$${esc(m.ticker)}</a><span class="muted mono small">${esc(m.repo.fullName)}</span></div>`).join("") : `<div class="list-item muted">no launches yet</div>`}</div></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+        <button class="btn btn-accent press" id="faucet">claim ${FAUCET_AMOUNT} play ETH</button>
         <button class="btn btn-outline press" id="copyAddr">copy address</button>
         <button class="btn btn-ghost press" id="disc">disconnect</button>
         <button class="btn btn-ghost press" id="reset" style="color:var(--red)">reset demo data</button>
@@ -1075,6 +1217,26 @@
   viewProfile.mount = (app) => {
     $("#pConnect", app)?.addEventListener("click", () => { connect(); render(); });
     $("#copyAddr", app)?.addEventListener("click", () => copy(state.wallet.address));
+    const fb = $("#faucet", app);
+    if (fb) {
+      const wait = () => Math.max(0, (state.wallet.lastFaucet || 0) + FAUCET_COOLDOWN - Date.now());
+      const label = () => {
+        const ms = wait();
+        fb.disabled = ms > 0;
+        fb.textContent = ms > 0 ? `faucet ready in ${Math.ceil(ms / 60000)} min` : `claim ${FAUCET_AMOUNT} play ETH`;
+      };
+      label();
+      const t = setInterval(label, 30000);
+      cleanup.push(() => clearInterval(t));
+      fb.addEventListener("click", () => {
+        if (wait() > 0) return;
+        state.wallet.balance += FAUCET_AMOUNT;
+        state.wallet.lastFaucet = Date.now();
+        save();
+        toast(`+${FAUCET_AMOUNT} play ETH`);
+        render();
+      });
+    }
     $("#disc", app)?.addEventListener("click", () => { disconnect(); render(); });
     let armed = false;
     $("#reset", app)?.addEventListener("click", (e) => {
