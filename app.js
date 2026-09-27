@@ -7,6 +7,9 @@
   // ---------- constants ----------
   // Paste the project's X (Twitter) profile here, e.g. "https://x.com/yourhandle"
   const X_PROFILE_URL = "https://x.com/Forklinetech";
+  // Official Forkline token contract address
+  const CONTRACT_ADDRESS = "0xa6c74c9bc7df385486ab1ecc07fe55c416b38a33";
+  const caShort = (a) => a.slice(0, 8) + "…" + a.slice(-6);
   const STORE_KEY = "forkline:v1";
   const TOTAL_SUPPLY = 1_000_000_000;
   const CURVE_SUPPLY = 800_000_000; // tokens sellable on the curve before graduation
@@ -192,6 +195,16 @@
   $$("#xLink, [data-xlink]").forEach((a) => {
     if (X_PROFILE_URL) a.href = X_PROFILE_URL;
     else a.addEventListener("click", (e) => { e.preventDefault(); toast("our X profile is coming soon"); });
+  });
+
+  $$("[data-ca-full]").forEach((el) => (el.textContent = CONTRACT_ADDRESS));
+  $$("[data-ca-short]").forEach((el) => (el.textContent = caShort(CONTRACT_ADDRESS)));
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-ca-copy]");
+    if (!b) return;
+    copy(CONTRACT_ADDRESS);
+    b.classList.add("done");
+    setTimeout(() => b.classList.remove("done"), 1400);
   });
 
   $("#connectBtn").addEventListener("click", () => {
@@ -450,18 +463,24 @@
           <div class="fh"><span class="dots"><i></i><i></i><i></i></span>zsh</div>
           <div class="fb code-line" id="typeTerm"></div>
         </div>
-        <div class="float hide-sm" style="left:38%;top:80%;width:200px;--dur:13s;--delay:.8s" data-depth="36">
+        <div class="float hide-sm" style="left:8%;top:86%;width:200px;--dur:13s;--delay:.8s" data-depth="36">
           <div class="fb" style="display:flex;align-items:center;gap:8px">${icon.branch}<span class="mono">fork → main</span><span class="pill green" style="margin-left:auto">merged</span></div>
         </div>
       </div>
       <div class="hero-glow"></div>
       <div class="hero-copy">
+        <div class="live-card" role="group" aria-label="official contract address">
+          <span class="live-pill"><i></i>LIVE</span>
+          <span class="live-ca"><span class="muted">CA</span> <span class="mono ca-full">${CONTRACT_ADDRESS}</span><span class="mono ca-short">${caShort(CONTRACT_ADDRESS)}</span></span>
+          <button type="button" class="live-copy press" data-ca-copy>copy</button>
+        </div>
         <h1><span class="word">ship code.</span><br><span class="word soft" style="animation-delay:.15s">launch it.</span></h1>
         <p>Forkline turns a public GitHub repository into a verified market. Paste a repo, prove you maintain it, and let people back the work they believe in.</p>
         <div class="hero-cta">
           <a href="#/explore" class="btn btn-lg btn-outline press">browse markets</a>
           <a href="#/launch" class="btn btn-lg btn-ink press">${icon.rocket} launch a repository</a>
         </div>
+        <p class="hero-note">The official contract address is only posted here and on <a href="${X_PROFILE_URL}" target="_blank" rel="noopener noreferrer">@Forklinetech</a>. Markets on this site run on a demo curve with play balance.</p>
       </div>
     </section>
     ${tickerHtml()}

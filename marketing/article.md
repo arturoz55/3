@@ -36,7 +36,7 @@ The address has to live inside the repository, and that matters. Anyone can laun
 
 $FORK is the Forkline community token.
 
-- Contract address: `[CONTRACT ADDRESS]`
+- Contract address: `0xa6c74c9bc7df385486ab1ecc07fe55c416b38a33`
 - Network: `[NETWORK]`
 - Official account: [@Forklinetech](https://x.com/Forklinetech). Only trust addresses posted there.
 
