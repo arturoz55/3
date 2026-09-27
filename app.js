@@ -446,10 +446,14 @@
     const term = [[["", "$ git push origin main"]], [["", "✓ 3 commits pushed"]], [["", "$ forkline verify"]], [["", "✓ ownership confirmed"]]];
     typeInto(termEl, term, (l, i, upto, cur) => {
       const t = l[0][1].slice(0, upto);
-      const color = t.startsWith("✓") ? "color:#6ee7b7" : "";
-      return `<div style="${color}">${esc(t)}${cur ? '<span class="caret" style="background:#d7d6e0"></span>' : ""}</div>`;
+      return `<div class="${t.startsWith("✓") ? "ok" : ""}">${esc(t)}${cur ? '<span class="caret" style="background:#d7d6e0"></span>' : ""}</div>`;
     }, 55, true);
     cleanup.push(() => timers.forEach(clearTimeout));
+
+    // turn the white hero panels into clouds
+    const makeClouds = () => $$(".float", app).forEach((f, i) => f.isConnected && window.Sky?.cloudify(f, 11 + i * 13));
+    makeClouds();
+    document.fonts?.ready.then(() => { if (app.contains($(".float", app))) makeClouds(); });
 
     // pointer parallax on floating panels
     const floats = $$("[data-depth]", app);
@@ -604,7 +608,7 @@
             err.innerHTML = `this repository already has a market — <a href="#/m/${existing.id}" style="text-decoration:underline">open $${esc(existing.ticker)}</a>`;
             wiz.repo = null;
           } else {
-            if (wiz.repo?.fullName !== r.fullName) { wiz.code = null; wiz.verified = false; wiz.name = ""; wiz.ticker = ""; }
+            if (wiz.repo?.fullName !== r.fullName) { wiz.code = null; wiz.verified = false; wiz.skip = false; wiz.name = ""; wiz.ticker = ""; }
             wiz.repo = r;
             if (r.archived) err.textContent = "note: this repository is archived";
           }
@@ -819,6 +823,7 @@
         <div style="text-align:right">
           <div class="price-big" id="priceBig">${fmtPrice(curve.price(m))}</div>
           <div class="small ${change >= 0 ? "up" : "down"}">${change >= 0 ? "+" : ""}${change.toFixed(2)}% · ETH per token</div>
+          <button class="btn btn-ghost press" id="shareLink" type="button" style="margin-top:8px;height:30px;font-size:12px;background:rgba(255,255,255,.6)">copy link</button>
         </div>
       </div>
       <div class="market">
@@ -863,11 +868,13 @@
     return acts.length ? acts.map((a) => `<div class="list-item">${activityLine(a)}<span class="t">${ago(a.t)}</span></div>`).join("") : `<div class="list-item muted">no trades yet</div>`;
   }
   function holdersOf(m) {
-    // only one local wallet exists in this demo; count it if it holds tokens, plus creator
-    const hs = new Set();
-    state.activity.filter((a) => a.marketId === m.id && a.type === "buy").forEach((a) => hs.add(a.who));
-    if (state.wallet && !(state.wallet.holdings[m.id] > 0)) hs.delete(state.wallet.address);
-    return [...hs];
+    // net position per address from the trade log
+    const pos = new Map();
+    for (const a of state.activity) {
+      if (a.marketId !== m.id || (a.type !== "buy" && a.type !== "sell")) continue;
+      pos.set(a.who, (pos.get(a.who) || 0) + (a.type === "buy" ? a.tokens : -a.tokens));
+    }
+    return [...pos].filter(([, v]) => v > 1e-6).map(([k]) => k);
   }
   function chartSvg(m) {
     const W = 700, H = 260, P = 10;
@@ -973,6 +980,7 @@
     };
     draw();
 
+    $("#shareLink", app).addEventListener("click", () => copy(location.href));
     $("#refreshRepo", app)?.addEventListener("click", async (e) => {
       const b = e.currentTarget;
       b.disabled = true; b.textContent = "refreshing…";
@@ -989,16 +997,26 @@
     });
   };
 
+  let activityFilter = "all";
   function viewActivity() {
-    const acts = state.activity.slice(0, 100);
+    const tab = (v, l) => `<button data-sort="${v}" class="${activityFilter === v ? "active" : ""}">${l}</button>`;
     return `<div class="page">
       <div class="page-head"><div class="eyebrow">activity</div><h2>live activity</h2><p>Launches and trades across every market, newest first.</p></div>
-      <div class="card feed"><div class="list">${acts.length ? acts.map((a) => `<div class="list-item">${activityLine(a)}<span class="t">${ago(a.t)} ago</span></div>`).join("") : `<div class="list-item muted">no activity yet — the first launch shows up here</div>`}</div></div>
+      <div class="rail"><div class="tabs" id="actTabs"><span class="tab-ind"></span>${tab("all", "all")}${tab("launch", "launches")}${tab("buy", "buys")}${tab("sell", "sells")}</div></div>
+      <div class="card feed"><div class="list" id="actList"></div></div>
     </div>`;
   }
-  viewActivity.mount = () => {
-    // refresh relative timestamps
-    const t = setInterval(() => { if (!document.hidden) render(); }, 30000);
+  viewActivity.mount = (app) => {
+    const list = $("#actList", app);
+    const draw = () => {
+      const acts = state.activity.filter((a) => activityFilter === "all" || a.type === activityFilter).slice(0, 100);
+      list.innerHTML = acts.length ? acts.map((a) => `<div class="list-item">${activityLine(a)}<span class="t">${ago(a.t)} ago</span></div>`).join("")
+        : `<div class="list-item muted">${state.activity.length ? "nothing of this kind yet" : "no activity yet — the first launch shows up here"}</div>`;
+    };
+    setupTabs($("#actTabs", app), (v) => { activityFilter = v; draw(); });
+    draw();
+    // refresh relative timestamps without resetting the page
+    const t = setInterval(() => { if (!document.hidden) draw(); }, 30000);
     cleanup.push(() => clearInterval(t));
   };
 
@@ -1076,6 +1094,7 @@
 
   // ---------- boot ----------
   document.documentElement.classList.add("js-motion");
+  window.Sky?.start();
   lastPath = location.hash.split("?")[0];
   onScroll();
   render();
