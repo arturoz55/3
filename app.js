@@ -5,6 +5,8 @@
   "use strict";
 
   // ---------- constants ----------
+  // Paste the project's X (Twitter) profile here, e.g. "https://x.com/yourhandle"
+  const X_PROFILE_URL = "";
   const STORE_KEY = "forkline:v1";
   const TOTAL_SUPPLY = 1_000_000_000;
   const CURVE_SUPPLY = 800_000_000; // tokens sellable on the curve before graduation
@@ -187,6 +189,11 @@
     b.textContent = state.wallet ? short(state.wallet.address) : "connect";
     b.classList.toggle("mono", !!state.wallet);
   }
+  $$("#xLink, [data-xlink]").forEach((a) => {
+    if (X_PROFILE_URL) a.href = X_PROFILE_URL;
+    else a.addEventListener("click", (e) => { e.preventDefault(); toast("our X profile is coming soon"); });
+  });
+
   $("#connectBtn").addEventListener("click", () => {
     if (state.wallet) location.hash = "#/profile";
     else { connect(); render(); }
@@ -345,11 +352,21 @@
         <div class="stat"><div class="k">24h</div><div class="v ${change >= 0 ? "up" : "down"}">${change >= 0 ? "+" : ""}${change.toFixed(1)}%</div></div>
         <div class="stat"><div class="k">stars</div><div class="v">${fmt(m.repo.stars, m.repo.stars < 1000 ? 0 : 1)}</div></div>
       </div>
+      ${sparkline(m)}
       <div>
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:6px"><span>curve progress</span><span class="mono">${curve.progress(m).toFixed(1)}%</span></div>
         <div class="bar"><i style="width:${curve.progress(m)}%"></i></div>
       </div>
     </a>`;
+  }
+  function sparkline(m) {
+    const pts = m.history.slice(-40);
+    if (pts.length < 2) return `<svg class="spark" viewBox="0 0 100 34" preserveAspectRatio="none" aria-hidden="true"><path d="M0 17 L100 17" stroke="rgba(24,22,40,.15)" vector-effect="non-scaling-stroke"/></svg>`;
+    const ps = pts.map((h) => h.p);
+    const lo = Math.min(...ps), hi = Math.max(...ps), span = hi - lo || hi * 0.01;
+    const d = pts.map((h, i) => (i ? "L" : "M") + ((i / (pts.length - 1)) * 100).toFixed(1) + " " + (31 - ((h.p - lo) / span) * 28).toFixed(1)).join(" ");
+    const up = ps[ps.length - 1] >= ps[0];
+    return `<svg class="spark" viewBox="0 0 100 34" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" stroke="${up ? "#16a36a" : "#e0493f"}" vector-effect="non-scaling-stroke"/></svg>`;
   }
   function priceChange(m) {
     const cutoff = Date.now() - 86400000;
@@ -894,6 +911,7 @@
           <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
             ${starBtn(m.id, 'style="height:30px;width:30px;background:rgba(255,255,255,.6)"')}
             <button class="btn btn-ghost press" id="shareLink" type="button" style="height:30px;font-size:12px;background:rgba(255,255,255,.6)">copy link</button>
+            <a class="btn btn-ghost press" id="shareX" target="_blank" rel="noopener noreferrer" style="height:30px;font-size:12px;background:rgba(255,255,255,.6)" href="https://x.com/intent/post?text=${encodeURIComponent(`$${m.ticker} — ${m.name} (${r.fullName}) is live on Forkline`)}">share on X</a>
           </div>
         </div>
       </div>
@@ -930,6 +948,10 @@
             </div>
           </div>
           <div class="card" style="margin-top:16px">
+            <div class="card-title">top holders</div>
+            <div class="list">${topHolders(m)}</div>
+          </div>
+          <div class="card" style="margin-top:16px">
             <div class="card-title">discussion <span class="muted small" id="cCount"></span></div>
             <form id="cForm" class="comment-form">
               <input id="cText" class="input" maxlength="280" placeholder="${state.wallet ? "say something about this project" : "connect a wallet to comment"}" autocomplete="off" />
@@ -945,6 +967,20 @@
   function tradesHtml(m) {
     const acts = state.activity.filter((a) => a.marketId === m.id).slice(0, 12);
     return acts.length ? acts.map((a) => `<div class="list-item">${activityLine(a)}<span class="t">${ago(a.t)}</span></div>`).join("") : `<div class="list-item muted">no trades yet</div>`;
+  }
+  function topHolders(m) {
+    const pos = new Map();
+    for (const a of state.activity) {
+      if (a.marketId !== m.id || (a.type !== "buy" && a.type !== "sell")) continue;
+      pos.set(a.who, (pos.get(a.who) || 0) + (a.type === "buy" ? a.tokens : -a.tokens));
+    }
+    const rows = [...pos].filter(([, v]) => v > 1e-6).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    if (!rows.length) return `<div class="list-item muted">no holders yet — the first buyer shows up here</div>`;
+    return rows.map(([who, amt]) => {
+      const pct = (amt / TOTAL_SUPPLY) * 100;
+      const tags = (who === m.creator ? ' <span class="pill">creator</span>' : "") + (state.wallet && who === state.wallet.address ? ' <span class="pill green">you</span>' : "");
+      return `<div class="list-item"><span class="mono small">${esc(short(who))}${tags}</span><span class="holder-bar" style="margin-left:auto"><i style="width:${Math.min(100, pct * 4)}%"></i></span><span class="t" style="margin-left:10px;min-width:56px;text-align:right">${pct.toFixed(2)}%</span></div>`;
+    }).join("");
   }
   function holdersOf(m) {
     // net position per address from the trade log
@@ -1023,6 +1059,7 @@
         }
       };
       amt.addEventListener("input", upd);
+      amt.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#goTrade", box).click(); } });
       $$("[data-side]", box).forEach((b) => b.addEventListener("click", () => { side = b.dataset.side; draw(); }));
       $$("[data-q]", box).forEach((b) => b.addEventListener("click", () => {
         const q = b.dataset.q;
@@ -1068,6 +1105,8 @@
     draw();
 
     $("#shareLink", app).addEventListener("click", () => copy(location.href));
+    // add the page link to the X post when it is a real web address
+    if (/^https?:/.test(location.href)) $("#shareX", app).href += encodeURIComponent(" " + location.href);
 
     // chart hover: nearest recorded price
     const chart = $("#chart", app), svg = $("svg", chart), tip = $("#chartTip", chart);

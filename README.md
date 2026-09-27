@@ -14,6 +14,11 @@ Forkline is a static single-page app (plain HTML, CSS and JavaScript, no build s
 - Explore (trending / recent / most active, search with the `/` shortcut, verified and watchlist filters), activity feed with filters, ticker, treasury, profile, and a mobile dock.
 - Watchlist (☆ on any market), price-impact warnings before a trade, chart hover tooltips, per-market discussion, profit and loss per holding, and a play-ETH faucet (5 ETH per hour).
 
+## Configure
+
+- **X profile**: set `X_PROFILE_URL` at the top of `app.js` (for example `https://x.com/yourhandle`). Until it is set, the X buttons show a "coming soon" note.
+- **Logo**: `logo.svg` (also inlined in `index.html`), with `favicon.svg` for the browser tab.
+
 ## Run locally
 
 ```sh
